@@ -54,6 +54,15 @@ ml-asset-pricing-horse-rac/
 ├── requirements.txt
 └── (more modules coming soon)
 Current Status: Both replication scripts are ready to run with demo data. Full pipeline with real WRDS/OptionMetrics data is in progress.
+```
+```bash
+### Demo Video
+
+<video width="800" height="450" controls>
+  <source src="https://raw.githubusercontent.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac/main/DEMO.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+```
 ```bash
 ### Replication Scripts
 
