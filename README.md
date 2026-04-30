@@ -65,7 +65,9 @@ Full pipeline with real WRDS/OptionMetrics data is in progress.
 ```
 ### Demo Video
 
-<video width="800" height="450" controls>
+<video width="800" controls autoplay muted loop>
   <source src="https://raw.githubusercontent.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac/main/DEMO.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
+
+<p><em>If the video does not play, please try refreshing the page or click <a href="https://raw.githubusercontent.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac/main/DEMO.mp4" target="_blank">here to open directly</a>.</em></p>
