@@ -1,0 +1,97 @@
+# =============================================================
+#  ML Asset Pricing Horse-Race — .gitignore
+# =============================================================
+
+# ── Python byte-compiled / optimized / DLL files ─────────────
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# ── Distribution / packaging ─────────────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# ── Jupyter Notebook ─────────────────────────────────────────
+**/.ipynb_checkpoints/
+
+# ── Data files ───────────────────────────────────────────────
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.xls
+data/**/*.parquet
+data/**/*.h5
+data/**/*.feather
+
+# ── Model artefacts ──────────────────────────────────────────
+models/**/*.pkl
+models/**/*.joblib
+models/**/*.pt
+models/**/*.h5
+models/**/*.bin
+models/**/*.onnx
+
+# ── SHAP / plot / output ─────────────────────────────────────
+output/**/*.png
+output/**/*.jpg
+output/**/*.jpeg
+output/**/*.svg
+output/**/*.pdf
+
+# ── Virtual environments ─────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment variables / secrets ──────────────────────────
+.env
+.env.*
+
+# ── IDE / Editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS generated ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing / CI ─────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Exceptions: keep these tracked ───────────────────────────
+
+# Keep .gitkeep so empty directories survive in the repo
+!**/.gitkeep
+
+# Keep sample / schema data for reproducibility
+!data/sample_*.csv
+!data/README.md
+
+# Keep README images and documentation figures
+!docs/**/*.png
+!docs/**/*.svg
+!figures/**/*.png
+!figures/**/*.pdf
+
+# Keep example output so reviewers can inspect without re-running
+!output/README.md
+
+# Keep model registry metadata (not the weights themselves)
+!models/README.md
+
+# Keep environment template (without actual secrets)
+!.env.example

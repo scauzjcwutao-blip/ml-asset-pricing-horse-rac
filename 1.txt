@@ -1,0 +1,4 @@
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple yfinance pandas
+python generate_demo_data.py
+
+python run_horse_race.py

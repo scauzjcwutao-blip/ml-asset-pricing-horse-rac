@@ -1,0 +1,30 @@
+# ==================== Core Data & Computation ====================
+pandas>=2.2.0
+numpy>=1.26.0
+
+# ==================== Machine Learning ====================
+scikit-learn>=1.5.0
+xgboost>=2.1.0
+lightgbm>=4.5.0
+
+# ==================== Explainability ====================
+shap>=0.46.0
+
+# ==================== Visualization ====================
+matplotlib>=3.9.0
+seaborn>=0.13.0
+
+# ==================== Statistics & Econometrics ====================
+statsmodels>=0.14.0
+scipy>=1.12.0
+
+# ==================== Data Download ====================
+pandas_datareader>=0.10.0
+
+# ==================== Jupyter & Utilities ====================
+jupyterlab
+tqdm
+
+# ==================== Optional (if you use torch later) ====================
+# torch>=2.4.0  # CPU version
+# torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
