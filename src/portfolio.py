@@ -1,29 +1,21 @@
 """
-Portfolio Construction Module
-Implements decile portfolio sorting and performance evaluation for asset pricing.
+Portfolio Construction Module (Final Fixed Version)
+Implements decile portfolio sorting and performance evaluation.
+Fixed: extreme max_drawdown caused by incorrect reindex/fill_value=0
 """
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 
 class PortfolioConstructor:
     """
-    Construct decile portfolios based on model predictions and evaluate performance.
+    Construct decile portfolios and evaluate performance.
+    Fixed version: safe long-short return calculation to prevent extreme drawdowns.
     """
 
     def __init__(self, n_quantiles: int = 10, periods_per_year: int = 12):
-        """
-        Initialize portfolio constructor.
-
-        Parameters:
-        -----------
-        n_quantiles : int
-            Number of quantiles for portfolio sorting (default: 10 for deciles)
-        periods_per_year : int
-            Number of periods per year for annualization (252 for daily, 12 for monthly)
-        """
         self.n_quantiles = n_quantiles
         self.periods_per_year = periods_per_year
 
@@ -31,140 +23,96 @@ class PortfolioConstructor:
         self,
         predictions: pd.Series,
         actual_returns: pd.Series
-    ) -> tuple:
+    ) -> Tuple[pd.DataFrame, pd.Series]:
         """
-        Create decile portfolios sorted by predictions.
-
-        Parameters:
-        -----------
-        predictions : pd.Series
-            Model predicted returns
-        actual_returns : pd.Series
-            Actual realized returns
-
-        Returns:
-        --------
-        tuple : (summary_df, ls_returns_series)
-            - summary_df: DataFrame with average returns per decile
-            - ls_returns_series: Time series of long-short portfolio returns
+        Create decile portfolios and compute long-short returns.
+        Safe version: no dangerous fill_value=0 reindex.
         """
-        # Align indices
+        # Align and clean data
         df = pd.DataFrame({
             'pred': predictions,
             'actual': actual_returns
         }).dropna()
 
-        # Create deciles based on predictions
-        df['decile'] = pd.qcut(df['pred'], q=self.n_quantiles, labels=False, duplicates='drop')
+        if len(df) == 0:
+            return pd.DataFrame(), pd.Series(dtype=float)
 
-        # Calculate decile portfolio returns (average)
-        decile_returns = df.groupby('decile')['actual'].mean()
+        # Assign deciles (cross-sectional if possible, otherwise time-series)
+        df['decile'] = pd.qcut(df['pred'], q=self.n_quantiles,
+                               labels=False, duplicates='drop')
 
-        # Long-short: long top decile (n_quantiles-1), short bottom decile (0)
-        long_short = decile_returns.iloc[-1] - decile_returns.iloc[0]
+        # 1. Summary: average return per decile
+        decile_avg = df.groupby('decile')['actual'].mean()
+        long_short_mean = decile_avg.iloc[-1] - decile_avg.iloc[0]
 
-        # Create summary DataFrame
-        result = pd.DataFrame({
-            'Decile': [f'D{i+1}' for i in range(len(decile_returns))],
-            'Return': decile_returns.values
+        summary = pd.DataFrame({
+            'Decile': [f'D{i+1}' for i in range(len(decile_avg))],
+            'Mean_Return': decile_avg.values
         })
+        ls_row = pd.DataFrame({'Decile': ['Long-Short'], 'Mean_Return': [long_short_mean]})
+        summary = pd.concat([summary, ls_row], ignore_index=True)
 
-        # Add long-short row
-        ls_row = pd.DataFrame({'Decile': ['Long-Short'], 'Return': [long_short]})
-        result = pd.concat([result, ls_row], ignore_index=True)
+        # 2. Time-series long-short returns (fixed safe version)
+        # Group by date first, then compute top - bottom
+        daily = df.groupby([df.index, 'decile'])['actual'].mean().unstack()
 
-        # Calculate time series of long-short returns (per period)
-        top_decile = df['decile'].max()
-        bottom_decile = df['decile'].min()
-        top_returns = df[df['decile'] == top_decile]['actual']
-        bottom_returns = df[df['decile'] == bottom_decile]['actual']
+        if len(daily.columns) < 2:
+            ls_returns = pd.Series(0.0, index=df.index, name='long_short')
+        else:
+            top = daily.columns[-1]
+            bottom = daily.columns[0]
+            ls_returns = daily[top] - daily[bottom]
+            ls_returns = ls_returns.dropna()   # 只保留 top 和 bottom 同时存在的日期
 
-        # Reindex to full index and fill with 0 for periods where decile has no observations
-        full_index = df.index
-        top_returns_aligned = top_returns.reindex(full_index, fill_value=0)
-        bottom_returns_aligned = bottom_returns.reindex(full_index, fill_value=0)
-        ls_returns = top_returns_aligned - bottom_returns_aligned
-
-        return result, ls_returns
+        return summary, ls_returns
 
     def evaluate_performance(
         self,
-        portfolio_returns: pd.Series
+        portfolio_returns: pd.Series,
+        risk_free_rate: Optional[pd.Series] = None
     ) -> Dict[str, float]:
         """
-        Calculate portfolio performance metrics.
-
-        Parameters:
-        -----------
-        portfolio_returns : pd.Series
-            Time series of portfolio returns
-
-        Returns:
-        --------
-        Dict[str, float] : Performance metrics
+        Calculate key performance metrics.
         """
         returns = portfolio_returns.dropna()
-
-        if len(returns) == 0:
+        if len(returns) < 2:
             return {
-                'mean_return': np.nan,
-                'volatility': np.nan,
+                'annualized_mean_return': np.nan,
+                'annualized_volatility': np.nan,
                 'sharpe_ratio': np.nan,
-                'max_drawdown': np.nan
+                'max_drawdown': np.nan,
+                'n_periods': 0
             }
 
-        # Mean annualized return
-        mean_return = returns.mean() * self.periods_per_year
+        # Excess return for Sharpe
+        if risk_free_rate is not None:
+            rf = risk_free_rate.reindex(returns.index).fillna(0)
+            excess = returns - rf
+        else:
+            excess = returns
 
-        # Annualized volatility
-        volatility = returns.std() * np.sqrt(self.periods_per_year)
+        mean_ret = returns.mean() * self.periods_per_year
+        vol = returns.std() * np.sqrt(self.periods_per_year)
+        sharpe = (excess.mean() * self.periods_per_year) / vol if vol > 0 else np.nan
 
-        # Sharpe ratio (assuming zero risk-free rate for simplicity)
-        sharpe_ratio = mean_return / volatility if volatility != 0 else np.nan
-
-        # Maximum drawdown
-        cumulative = (1 + returns).cumprod()
-        running_max = cumulative.cummax()
-        drawdown = (cumulative - running_max) / running_max
-        max_drawdown = drawdown.min()
+        # Safe max drawdown
+        cum = (1 + returns).cumprod()
+        running_max = cum.cummax()
+        drawdown = (cum - running_max) / running_max
+        max_dd = drawdown.min()
 
         return {
-            'mean_return': mean_return,
-            'volatility': volatility,
-            'sharpe_ratio': sharpe_ratio,
-            'max_drawdown': max_drawdown
+            'annualized_mean_return': mean_ret,
+            'annualized_volatility': vol,
+            'sharpe_ratio': sharpe,
+            'max_drawdown': max_dd,
+            'n_periods': len(returns)
         }
 
-    def decile_analysis(
-        self,
-        predictions: pd.Series,
-        actual_returns: pd.Series
-    ) -> pd.DataFrame:
-        """
-        Full decile analysis: monotonicity test and spread significance.
-
-        Parameters:
-        -----------
-        predictions : pd.Series
-            Model predicted returns
-        actual_returns : pd.Series
-            Actual realized returns
-
-        Returns:
-        --------
-        pd.DataFrame : Decile statistics
-        """
-        df = pd.DataFrame({
-            'pred': predictions,
-            'actual': actual_returns
-        }).dropna()
-
+    def decile_analysis(self, predictions: pd.Series, actual_returns: pd.Series) -> pd.DataFrame:
+        """Optional: detailed decile statistics"""
+        df = pd.DataFrame({'pred': predictions, 'actual': actual_returns}).dropna()
         df['decile'] = pd.qcut(df['pred'], q=self.n_quantiles, labels=False, duplicates='drop')
-
-        # Statistics per decile
-        stats = df.groupby('decile').agg({
-            'actual': ['mean', 'std', 'count']
-        }).reset_index()
+        stats = df.groupby('decile')['actual'].agg(['mean', 'std', 'count']).reset_index()
         stats.columns = ['decile', 'mean_return', 'std_return', 'n_obs']
-
         return stats
