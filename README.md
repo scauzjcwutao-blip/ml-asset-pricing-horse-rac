@@ -53,19 +53,19 @@ ml-asset-pricing-horse-rac/
 ├── replicate_weigert_up_2024.py
 ├── requirements.txt
 └── (more modules coming soon)
-Current Status: Both replication scripts are ready to run with demo data. Full pipeline with real WRDS/OptionMetrics data is in progress.
+### Current Status
+
+Both replication scripts are ready to run with demo data.  
+Full pipeline with real WRDS/OptionMetrics data is in progress.
+
+### Replication Scripts
+
+- **`replicate_weigert_rfs2023.py`** — Replicates **Weigert et al. (RFS 2023)**: Option Return Predictability with Machine Learning and Big Data
+- **`replicate_weigert_up_2024.py`** — Replicates **Weigert et al. (JF 2024)**: Unobserved Performance of Hedge Funds
 ```
-```bash
 ### Demo Video
 
 <video width="800" height="450" controls>
   <source src="https://raw.githubusercontent.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac/main/DEMO.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
-```
-```bash
-### Replication Scripts
-
-- **`replicate_weigert_rfs2023.py`** — Replicates **Weigert et al. (RFS 2023)**: Option Return Predictability with Machine Learning and Big Data
-- **`replicate_weigert_up_2024.py`** — Replicates **Weigert et al. (JF 2024)**: Unobserved Performance of Hedge Funds
-  
