@@ -60,8 +60,8 @@ Full pipeline with real WRDS/OptionMetrics data is in progress.
 
 ### Replication Scripts
 
-- **`replicate_weigert_rfs2023.py`** — Replicates **Weigert et al. (RFS 2023)**: Option Return Predictability with Machine Learning and Big Data
-- **`replicate_weigert_up_2024.py`** — Replicates **Weigert et al. (JF 2024)**: Unobserved Performance of Hedge Funds
+- **`replicate_weigert_rfs2023.py`** — Replicates **Turan G Bali, Heiner Beckmeyer, Mathis Mörke, Florian Weigert, Option Return Predictability with Machine Learning and Big Data, The Review of Financial Studies, Volume 36, Issue 9, September 2023, Pages 3548–3602, https://doi.org/10.1093/rfs/hhad017
+- **`replicate_weigert_up_2024.py`** — Replicates AGARWAL, V., RUENZI, S. and WEIGERT, F. (2024), Unobserved Performance of Hedge Funds. J Finance, 79: 3203-3259. https://doi.org/10.1111/jofi.13368
 ```
 ### Demo Video
 
