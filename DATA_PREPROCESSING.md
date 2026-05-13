@@ -424,4 +424,4 @@ This pipeline ensures that:
 
 ***
 
-If you tell me your actual variable list (which characteristics you plan to use), I can tailor the feature engineering section to match exactly what you want to document in the GitHub repo.
+
