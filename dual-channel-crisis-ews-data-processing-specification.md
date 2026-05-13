@@ -395,7 +395,91 @@ for step in walk_forward_steps:
 
     save_scaler_params(step=step, means=mean_f, stds=std_f)
 ```
+## Stage 11: Diagnostics, Validation, and Quality Assurance
 
+### 11.1 Purpose and Rationale
+
+Before the final panel is handed over for modeling, it must pass a rigorous suite of diagnostic checks. Silent failures in financial data preprocessing (e.g., merging errors, regime-break artifacts, unhandled survivorship bias) often produce models that look successful but are conceptually flawed. This stage enforces quantitative and qualitative validation.
+
+### 11.2 Internal Consistency Checks
+
+These checks verify the mechanical integrity of the data pipeline:
+
+*   **Row Counts and Attrition:** Verify that the number of funds per month remains stable and does not exhibit unexplained dropouts, particularly around the 2019 transition from Form N-Q to N-PORT.
+*   **Uniqueness:** Confirm that `(fund_id, yyyymm)` uniquely identifies every row in the master panel.
+*   **Missingness Distribution:** Compute the percentage of missing values for every signal across time. A sudden spike in missing values usually indicates a broken CUSIP linkage or a parsing failure in the EDGAR extraction pipeline.
+*   **Filing Lag Distribution:** Calculate `filed_date - report_date`. Verify that the median gap aligns with SEC rules (e.g., roughly 60 days for N-PORT and N-CSR). Flag any filings with negative lags or lags exceeding 90 days.
+
+```python
+# Example consistency check
+def check_filing_lags(panel):
+    lag_days = (panel['holdings_filed_date'] - panel['holdings_report_date']).dt.days
+    assert lag_days.min() >= 0, "Error: Filed date cannot precede report date"
+    print(f"Median filing lag: {lag_days.median()} days")
+```
+
+### 11.3 Signal Plausibility Checks
+
+These checks confirm that the computed signals reflect known historical realities:
+
+*   **Concentration Dynamics:** Verify that aggregate `hhi_port` and `top10_share` show upward trends during known periods of market crowding (e.g., the \"FAANG\" concentration build-up prior to the COVID crash).
+*   **Sentiment Dynamics:** Confirm that `news_sent_market` drops sharply precisely at known crisis onset dates (e.g., September 2008, February 2020).
+*   **Structural Fragility Trend:** Check that the `fragility_idx` exhibits a structural upward trend in the post-2015 era, corresponding to the well-documented rise of passive investing.
+
+### 11.4 External Benchmark Validation
+
+*   **Aggregate Flow vs. ICI:** Sum the `flow_clean` across all funds in the panel for each month and calculate the correlation with the official Investment Company Institute (ICI) mutual fund flow statistics. A high correlation (>0.85) confirms that the CRSP-based flow extraction and merger-cleaning logic is sound.
+*   **Illiquidity vs. Market Events:** Verify that the portfolio-weighted `amihud_port` measure spikes concurrently with known market-wide liquidity freezes (e.g., March 2020 Treasury market dysfunction).
+
+### 11.5 Survivorship Bias Checks
+
+*   **Death Rate Spikes:** Plot the count of `terminal_flag = 1` by quarter. Ensure there are visible spikes during and immediately following the Dot-com and GFC episodes. If deaths are uniform or missing, the CRSP delisting linkage failed.
+*   **Terminal Outflows:** Verify that funds nearing their termination date exhibit severe negative values in `flow_raw` and are properly captured in the target label before exiting the sample.
+
+---
+
+## Stage 12: Version Control and Reproducibility
+
+### 12.1 Purpose and Rationale
+
+Financial databases (CRSP, Morningstar) and external APIs (GDELT, RavenPack) are routinely updated, backfilled, and revised. A predictive signal generated today might look different if the same database is queried a year later. To ensure absolute reproducibility, the pipeline must log exact data vintages and software environments.
+
+### 12.2 Data Vintage Tracking
+
+A `reproducibility_log.json` artifact must be generated alongside the final panel, recording:
+
+*   **WRDS Extraction Date:** The exact date CRSP Mutual Fund and CRSP Stock files were queried, along with the specific table versions (e.g., `crsp_q_mutualfunds`).
+*   **SEC EDGAR Scope:** The date the bulk download was executed and the exact range of quarters included.
+*   **News Corpus Vintage:** The cutoff date and version of the RavenPack or GDELT dataset used.
+*   **Macro Data Vintage:** The exact retrieval date for FRED and ICI series, acknowledging that macro series are often subject to retrospective revisions.
+
+### 12.3 Software and Pipeline Versioning
+
+*   **FinBERT Model Version:** Document whether the off-the-shelf `ProsusAI/finbert` was used or a custom fine-tuned checkpoint. Record the Hugging Face model hash.
+*   **T2MD Pipeline Commit:** Record the Git commit hash of the Text-to-Machine-Data (T2MD) repository used to parse N-CSR and N-Q HTML filings.
+*   **Preprocessing Script Commit:** Record the Git commit hash of the primary processing repository.
+
+### 12.4 Execution Environment
+
+Provide a standard `requirements.txt`, `environment.yml`, or `poetry.lock` defining the exact versions of Pandas, PyTorch, Transformers, and scikit-learn used during extraction and merging.
+
+```json
+{
+  "pipeline_execution": {
+    "timestamp": "2025-XX-XXT14:32:00Z",
+    "git_commit": "a1b2c3d4e5f6...",
+    "t2md_commit": "9f8e7d6c5b4a...",
+    "finbert_model": "ProsusAI/finbert",
+    "data_vintages": {
+      "crsp_mutual_fund": "2025-01-15",
+      "sec_edgar_through": "2024-12-31",
+      "fred_api_pull": "2025-02-01"
+    }
+  }
+}
+```
+
+The pipeline execution is considered complete only when this reproducibility log is successfully written to the `artifacts/final/` directory alongside the master panel.
 ---
 ## Appendix A: Complete Final Panel Schema
 
