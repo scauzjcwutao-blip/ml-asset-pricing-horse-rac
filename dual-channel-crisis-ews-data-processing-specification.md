@@ -379,11 +379,13 @@ The structural fragility index is designed to capture the interaction between th
 
 Baseline specification:
 
-\[
-\text{fragility\_idx}_t
-= z\left(\Delta \log(\text{PassiveAUM}_t)\right)
-+ z\left(\text{IndexHHI}_t\right),
-\]
+$$
+\text{FragilityIdx}_t = z\left(\Delta \log(\text{PassiveAUM}_t)\right) + z\left(\text{IndexHHI}_t\right)
+$$
+
+where $z(\cdot)$ denotes a standardized version of the series (mean 0, unit variance) computed over the historical window up to time $t$.
+
+Implementation:
 
 where \(z(\cdot)\) denotes a standardized version of the series (mean 0, unit variance) computed over the historical window up to time \(t\).
 
