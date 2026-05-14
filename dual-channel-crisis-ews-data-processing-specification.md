@@ -218,10 +218,11 @@ Critical differences from N-PORT:
 
 **Parsing quality control:**
 
-\[
-\text{Parse Quality Ratio} =
-\frac{\sum_j \text{parsed\_value}_j}{\text{reported\_NAV} \times \text{shares\_outstanding}}
-\]
+Parsing quality control:
+
+$$
+\text{ParseQualityRatio} = \frac{\sum_j \text{parsedValue}_j}{\text{reportedNAV} \times \text{sharesOutstanding}}
+$$
 
 If this ratio deviates from 1.0 by more than 5%, flag the filing as `parse_quality = "low"`. If the deviation exceeds 20%, mark it as `parse_quality = "failed"`.
 
