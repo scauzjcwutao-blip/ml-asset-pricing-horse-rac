@@ -579,14 +579,14 @@ Starting from a daily news-level dataset with FinBERT scores:
   - FinBERT sentiment score \(s_k \in [-1,1]\),
   - optional relevance weight \(w_k\) (e.g., based on source quality or article length).
 
-For each month \(t\), define:
+For each month $t$, define:
 
-\[
-\text{news\_sent\_market}_t =
-\frac{\sum_{k \in t} w_k s_k}{\sum_{k \in t} w_k},
-\]
+$$
+\text{NewsSentMarket}_t =
+\frac{\sum_{k \in t} w_k s_k}{\sum_{k \in t} w_k}
+$$
 
-with \(w_k = 1\) as the baseline.
+with $w_k = 1$ as the baseline.
 
 Implementation:
 
@@ -607,10 +607,10 @@ For articles that can be linked to specific funds or categories (via ticker mapp
 
 - **Fund-level:**
 
-\[
-\text{news\_sent\_fund}_{i,t} =
-\frac{\sum_{k \in \mathcal{N}(i,t)} s_k}{|\mathcal{N}(i,t)|},
-\]
+$$
+\text{NewsSentFund}_{i,t} =
+\frac{\sum_{k \in \mathcal{N}(i,t)} s_k}{\lvert \mathcal{N}(i,t) \rvert}
+$$
 
 where \(\mathcal{N}(i,t)\) is the set of news items linked to fund \(i\) in month \(t\).
 
@@ -626,11 +626,11 @@ From Stage 3’s `report_sentiment_by_section`, each filing has:
 - section-level sentiment scores \(s_{\text{MDA}}, s_{\text{Risk}}, s_{\text{Letter}}\),
 - a total sentiment score computed as a length-weighted average:
 
-\[
-\text{report\_sent\_total} =
+$$
+\text{ReportSentTotal} =
 \frac{\sum_{\ell} L_{\ell} s_{\ell}}
-     {\sum_{\ell} L_{\ell}},
-\]
+     {\sum_{\ell} L_{\ell}}
+$$
 
 where \(L_{\ell}\) is the token or sentence count of section \(\ell\).
 
@@ -646,11 +646,11 @@ Between filings, the latest available filing sentiment is carried forward (step 
 
 For each fund \(i\) and each filing \(k\) with effective month \(m_k\):
 
-\[
-\text{report\_delta\_sent}_{i,m_k} =
-\text{report\_sent\_total}_{i,m_k} -
-\text{report\_sent\_total}_{i,m_{k-1}},
-\]
+$$
+\text{ReportDeltaSent}_{i,m_k} =
+\text{ReportSentTotal}_{i,m_k} -
+\text{ReportSentTotal}_{i,m_{k-1}}
+$$
 
 where \(m_{k-1}\) is the effective month of the previous filing of the same fund. This delta is attached to month \(m_k\) and carried forward until the next filing.
 
@@ -660,10 +660,11 @@ Keyword intensity variables follow the same pattern:
 
 - For each filing and keyword group \(g\) (e.g., liquidity, redemption, volatility), compute:
 
-\[
-\text{kw\_intensity}_{g} =
-\frac{\text{count of tokens in group } g}{\text{total tokens in relevant sections}}.
-\]
+$$
+\text{KWIntensity}_{g} =
+\frac{\text{count of tokens in group } g}
+     {\text{total tokens in relevant sections}}
+$$
 
 - Map to `effective_month` and carry forward as step functions, analogous to `report_sent_total`.
 
@@ -689,25 +690,6 @@ This stage constructs the target variables for crisis prediction:
 - `crisis_flow_fwd`: forward-looking outflow-based crisis indicator.
 
 The key design constraint is to ensure that labels are defined strictly using future realizations relative to the prediction month, while feature construction uses only information available up to the prediction month, thereby avoiding target leakage.
-
-### 7.2 Drawdown Crisis Label (`crisis_dd_fwd`)
-
-For each fund \(i\) and month \(t\), define the cumulative return over a forward window of \(H^{(dd)}\) months:
-
-\[
-R_{i,t}^{(H^{(dd)})} =
-\prod_{\tau = t+1}^{t+H^{(dd)}} (1 + r_{i,\tau}) - 1.
-\]
-
-Define a drawdown threshold \(\theta_{dd} < 0\) (e.g., \(-0.3\) for a 30% drop). Then:
-
-\[
-\text{crisis\_dd\_fwd}_{i,t} =
-\begin{cases}
-1, & \text{if } R_{i,t}^{(H^{(dd)})} \leq \theta_{dd}, \\
-0, & \text{otherwise.}
-\end{cases}
-\]
 
 ### 7.2 Drawdown Crisis Label (`crisis_dd_fwd`)
 
