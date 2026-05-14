@@ -322,7 +322,567 @@ artifacts/stage3/
 │   └── report_text_quality_flags.parquet
 └── stage3_diagnostics.json
 ```
+## Stage 4: Macro and Structural Fragility Indicator Construction
 
+### 4.1 Purpose and Rationale
+
+This stage constructs the macro-financial and structural fragility variables that capture the broader environment in which funds operate. These variables serve two roles: (i) as control covariates to disentangle fund-specific behavior from market-wide stress and (ii) as inputs to a structural fragility index that proxies for the vulnerability of the ecosystem to passive flows and index concentration.
+
+All macro variables must respect point-in-time constraints by incorporating appropriate publication lags.
+
+### 4.2 Data Sources
+
+The baseline implementation uses the following public data sources (via FRED or equivalent vendors):
+
+- **Volatility:** CBOE Volatility Index (VIX).
+- **Credit Spread:** Moody’s BAA Corporate Bond Yield minus 10-Year Treasury Constant Maturity.
+- **Yield Curve Slope:** 10-Year Treasury Constant Maturity minus 2-Year Treasury.
+- **Passive AUM:** Time series of passive mutual fund and ETF assets under management (e.g., from ICI or Morningstar).
+- **Index Concentration:** Herfindahl-Hirschman Index (HHI) of major equity indices’ constituent weights (e.g., S&P 500).
+
+Each time series is downloaded at a **daily or monthly frequency** and then aggregated to the **end-of-month** frequency consistent with the fund-month panel.
+
+### 4.3 Publication Lag and Point-in-Time Alignment
+
+For each macro series \(x_t\), the following alignment rule is applied:
+
+- If \(x_t\) is available contemporaneously (e.g., VIX closing value on the last trading day of month \(t\)), then \(x_t\) is eligible for prediction of month \(t+1\) onward.
+- If a series is published with delay (e.g., macro releases that appear in the first week of month \(t+1\)), a one-month lag is imposed to guarantee that the value used for month \(t\) was known by the end of month \(t\).
+
+Implementation sketch:
+
+```python
+macro["yyyymm"] = macro["date"].dt.year * 100 + macro["date"].dt.month
+macro_monthly = (
+    macro.groupby("yyyymm")
+         .agg({
+             "vix": "last",
+             "credit_spread": "last",
+             "yield_slope": "last",
+             "passive_aum": "last",
+             "index_hhi": "last",
+         })
+         .reset_index()
+)
+
+# Impose one-month lag where necessary
+macro_monthly[["vix", "credit_spread", "yield_slope"]] = \
+    macro_monthly[["vix", "credit_spread", "yield_slope"]].shift(1)
+```
+
+The lagged values are then merged onto the `(fund_id, yyyymm)` backbone in Stage 8.
+
+### 4.4 Structural Fragility Index Construction
+
+The structural fragility index is designed to capture the interaction between the growth of passive investing and the concentration of benchmark indices.
+
+Baseline specification:
+
+\[
+\text{fragility\_idx}_t
+= z\left(\Delta \log(\text{PassiveAUM}_t)\right)
++ z\left(\text{IndexHHI}_t\right),
+\]
+
+where \(z(\cdot)\) denotes a standardized version of the series (mean 0, unit variance) computed over the historical window up to time \(t\).
+
+Implementation:
+
+```python
+macro_monthly["passive_aum_growth"] = (
+    np.log(macro_monthly["passive_aum"]) -
+    np.log(macro_monthly["passive_aum"].shift(12))
+)
+
+# Standardize within-sample up to each month (recursive z-score)
+mean_aum = macro_monthly["passive_aum_growth"].expanding().mean()
+std_aum  = macro_monthly["passive_aum_growth"].expanding().std().replace(0, 1.0)
+
+mean_hhi = macro_monthly["index_hhi"].expanding().mean()
+std_hhi  = macro_monthly["index_hhi"].expanding().std().replace(0, 1.0)
+
+macro_monthly["fragility_idx"] = (
+    (macro_monthly["passive_aum_growth"] - mean_aum) / std_aum +
+    (macro_monthly["index_hhi"] - mean_hhi) / std_hhi
+)
+```
+
+### 4.5 Stage 4 Output Artifacts
+
+```text
+artifacts/stage4/
+├── macro_monthly_raw.parquet
+├── macro_monthly_lagged.parquet
+├── fragility_index_monthly.parquet
+└── stage4_diagnostics.json
+```
+
+---
+
+## Stage 5: Signal Computation — Holdings Channel
+
+### 5.1 Purpose and Rationale
+
+Stage 2 delivers security-level holdings snapshots across regimes. Stage 5 aggregates these holdings into fund-level signals that describe concentration, liquidity exposure, crowding, and tail-risk characteristics. A strict distinction is maintained between:
+
+- **Predictive signals**: computable using information available at or before month \(t\).
+- **Ex post diagnostic signals**: require future return realizations and are used only for mechanism validation (not as predictors).
+
+### 5.2 Portfolio Weights and Basic Aggregation
+
+For each fund \(i\), month \(t\), and security \(j\) with market value \( \text{value}_{ijt} \):
+
+\[
+w_{i,j,t} = \frac{\text{value}_{i,j,t}}{\sum_{k} \text{value}_{i,k,t}}.
+\]
+
+Using these weights, all security-level characteristics \(x_{j,t}\) are aggregated to the fund level as:
+
+\[
+x_{i,t}^{\text{port}} = \sum_j w_{i,j,t} \, x_{j,t}.
+\]
+
+### 5.3 Concentration Measures
+
+**Herfindahl-Hirschman Index (HHI):**
+
+\[
+\text{hhi\_port}_{i,t} = \sum_j w_{i,j,t}^2.
+\]
+
+**Top 10 Holdings Share:**
+
+1. Sort securities by \(w_{i,j,t}\) in descending order.
+2. Sum the top 10 weights:
+
+\[
+\text{top10\_share}_{i,t} = \sum_{j \in \text{Top 10}} w_{i,j,t}.
+\]
+
+### 5.4 Liquidity Exposure: Portfolio Amihud
+
+Using CRSP stock-level daily data, compute the daily Amihud illiquidity measure for each stock \(j\):
+
+\[
+\text{illiq}_{j,d} = \frac{|r_{j,d}|}{\text{DollarVolume}_{j,d}}.
+\]
+
+Then average over all trading days in month \(t\):
+
+\[
+\text{illiq}_{j,t} = \frac{1}{D_t} \sum_{d \in t} \text{illiq}_{j,d}.
+\]
+
+Portfolio-level Amihud:
+
+\[
+\text{amihud\_port}_{i,t} = \sum_j w_{i,j,t} \, \text{illiq}_{j,t}.
+\]
+
+By construction, this measure is known at the end of month \(t\) and can be used to predict \(t+1\) onward.
+
+### 5.5 Crowding / Similarity: Category Overlap
+
+For each category \(c\) and month \(t\), define the category-average portfolio:
+
+\[
+\bar{w}_{c,j,t} = \frac{1}{N_{c,t}} \sum_{i \in c} w_{i,j,t}.
+\]
+
+Compute the cosine similarity between fund \(i\)’s weight vector \(w_{i,\cdot,t}\) and the category-average vector \(\bar{w}_{c,\cdot,t}\):
+
+\[
+\text{overlap\_cat}_{i,t} =
+\frac{\sum_j w_{i,j,t} \bar{w}_{c,j,t}}
+     {\sqrt{\sum_j w_{i,j,t}^2} \sqrt{\sum_j \bar{w}_{c,j,t}^2}}.
+\]
+
+This measures how “crowded” a fund is relative to its peers.
+
+### 5.6 Tail-Risk Exposure: Portfolio MES (Marginal Expected Shortfall)
+
+Using stock-level daily returns \(r_{j,d}\) and a chosen market factor \(r_{M,d}\) (e.g., S&P 500):
+
+1. Estimate each stock’s MES as:
+
+\[
+\text{MES}_{j} =
+\mathbb{E}\left[ r_{j,d} \,\middle|\, r_{M,d} \leq q_{0.05}(r_{M}) \right],
+\]
+
+where \(q_{0.05}(r_M)\) is the 5% left-tail quantile of the market return.
+
+2. Aggregate to the portfolio:
+
+\[
+\text{mes\_port}_{i,t} = \sum_j w_{i,j,t} \, \text{MES}_j.
+\]
+
+MES is estimated using a rolling window of daily returns up to month \(t\), ensuring point-in-time validity.
+
+### 5.7 Turnover and Turnover Shock
+
+If reported turnover ratios are available at year or semi-annual frequency:
+
+- **Level:** Use reported `turn_ratio` mapped to the corresponding months.
+- **Quarter-over-quarter change:**
+
+\[
+\text{turnover\_chg}_{i,t} = \text{turnover}_{i,t} - \text{turnover}_{i,t-3}.
+\]
+
+A large positive value indicates an unusual surge in trading activity.
+
+### 5.8 Ex Post Diagnostics: Holdings-Based Return and Return Gap
+
+These variables are **strictly diagnostic** and must never be included in the predictive feature set.
+
+1. **Holdings-Based Return (HBR):**
+
+Use end-of-month weights \(w_{i,j,t}\) and next-month stock returns \(r_{j,t+1}\):
+
+\[
+\text{hbr\_ex\_post}_{i,t+1} = \sum_j w_{i,j,t} \, r_{j,t+1}.
+\]
+
+2. **Return Gap:**
+
+\[
+\text{return\_gap\_ex\_post}_{i,t+1} =
+r_{i,t+1}^{\text{reported}} - \text{hbr\_ex\_post}_{i,t+1}.
+\]
+
+These ex post measures are used to study whether “abnormal” trading or unobserved positions explain deviations between reported returns and holdings-implied returns.
+
+### 5.9 Stage 5 Output Artifacts
+
+```text
+artifacts/stage5/
+├── holdings_signals_monthly.parquet
+├── holdings_signals_ex_post_diagnostics.parquet
+└── stage5_diagnostics.json
+```
+
+---
+
+## Stage 6: Signal Computation — Text Channel
+
+### 6.1 Purpose and Rationale
+
+Stage 3 produces sentence-level or section-level sentiment and keyword intensities for both news and fund reports. Stage 6 aggregates these fine-grained outputs into panel-ready, monthly fund-level and market-level features.
+
+### 6.2 Market-Level News Sentiment (`news_sent_market`)
+
+Starting from a daily news-level dataset with FinBERT scores:
+
+- Each news item \(k\) has:
+  - publication date \(d_k\),
+  - FinBERT sentiment score \(s_k \in [-1,1]\),
+  - optional relevance weight \(w_k\) (e.g., based on source quality or article length).
+
+For each month \(t\), define:
+
+\[
+\text{news\_sent\_market}_t =
+\frac{\sum_{k \in t} w_k s_k}{\sum_{k \in t} w_k},
+\]
+
+with \(w_k = 1\) as the baseline.
+
+Implementation:
+
+```python
+news_daily["yyyymm"] = news_daily["date"].dt.year * 100 + news_daily["date"].dt.month
+monthly_market = (
+    news_daily.groupby("yyyymm")
+              .apply(lambda df: np.average(df["sentiment"], weights=None))
+              .reset_index(name="news_sent_market")
+)
+```
+
+This series is then lagged by one month for prediction.
+
+### 6.3 Fund-Linked and Category-Linked News Sentiment
+
+For articles that can be linked to specific funds or categories (via ticker mapping, name matching, or metadata):
+
+- **Fund-level:**
+
+\[
+\text{news\_sent\_fund}_{i,t} =
+\frac{\sum_{k \in \mathcal{N}(i,t)} s_k}{|\mathcal{N}(i,t)|},
+\]
+
+where \(\mathcal{N}(i,t)\) is the set of news items linked to fund \(i\) in month \(t\).
+
+- **Category-level:** analogous aggregation over categories.
+
+Missing values (no linked news) are carried as NaN and can later be imputed or left as missing.
+
+### 6.4 Report-Level Sentiment Aggregation
+
+From Stage 3’s `report_sentiment_by_section`, each filing has:
+
+- `fund_id`, `report_date`, `filed_date`, `effective_month`,
+- section-level sentiment scores \(s_{\text{MDA}}, s_{\text{Risk}}, s_{\text{Letter}}\),
+- a total sentiment score computed as a length-weighted average:
+
+\[
+\text{report\_sent\_total} =
+\frac{\sum_{\ell} L_{\ell} s_{\ell}}
+     {\sum_{\ell} L_{\ell}},
+\]
+
+where \(L_{\ell}\) is the token or sentence count of section \(\ell\).
+
+**Monthly mapping:** For each fund and its filing with `effective_month = m`, set:
+
+\[
+\text{report\_sent\_total}_{i,m} = \text{report\_sent\_total}(\text{filing } i).
+\]
+
+Between filings, the latest available filing sentiment is carried forward (step function) starting from `effective_month`, consistent with the point-in-time rule.
+
+### 6.5 Sentiment Change (`report_delta_sent`)
+
+For each fund \(i\) and each filing \(k\) with effective month \(m_k\):
+
+\[
+\text{report\_delta\_sent}_{i,m_k} =
+\text{report\_sent\_total}_{i,m_k} -
+\text{report\_sent\_total}_{i,m_{k-1}},
+\]
+
+where \(m_{k-1}\) is the effective month of the previous filing of the same fund. This delta is attached to month \(m_k\) and carried forward until the next filing.
+
+### 6.6 Keyword-Based Indicators
+
+Keyword intensity variables follow the same pattern:
+
+- For each filing and keyword group \(g\) (e.g., liquidity, redemption, volatility), compute:
+
+\[
+\text{kw\_intensity}_{g} =
+\frac{\text{count of tokens in group } g}{\text{total tokens in relevant sections}}.
+\]
+
+- Map to `effective_month` and carry forward as step functions, analogous to `report_sent_total`.
+
+### 6.7 Stage 6 Output Artifacts
+
+```text
+artifacts/stage6/
+├── text_signals_market_monthly.parquet
+├── text_signals_fund_monthly.parquet
+├── text_signals_category_monthly.parquet
+└── stage6_diagnostics.json
+```
+
+---
+
+## Stage 7: Crisis Label Construction
+
+### 7.1 Purpose and Rationale
+
+This stage constructs the target variables for crisis prediction:
+
+- `crisis_dd_fwd`: forward-looking drawdown-based crisis indicator.
+- `crisis_flow_fwd`: forward-looking outflow-based crisis indicator.
+
+The key design constraint is to ensure that labels are defined strictly using future realizations relative to the prediction month, while feature construction uses only information available up to the prediction month, thereby avoiding target leakage.
+
+### 7.2 Drawdown Crisis Label (`crisis_dd_fwd`)
+
+For each fund \(i\) and month \(t\), define the cumulative return over a forward window of \(H^{(dd)}\) months:
+
+\[
+R_{i,t}^{(H^{(dd)})} =
+\prod_{\tau = t+1}^{t+H^{(dd)}} (1 + r_{i,\tau}) - 1.
+\]
+
+Define a drawdown threshold \(\theta_{dd} < 0\) (e.g., \(-0.3\) for a 30% drop). Then:
+
+\[
+\text{crisis\_dd\_fwd}_{i,t} =
+\begin{cases}
+1, & \text{if } R_{i,t}^{(H^{(dd)})} \leq \theta_{dd}, \\
+0, & \text{otherwise.}
+\end{cases}
+\]
+
+Typical choices:
+
+- \(H^{(dd)} = 6\) or \(12\) months.
+- \(\theta_{dd} \in [-0.2, -0.4]\) depending on desired severity.
+
+Implementation sketch:
+
+```python
+H_DD = 6
+THRESH_DD = -0.3
+
+fund_panel = fund_panel.sort_values(["fund_id", "yyyymm"])
+fund_panel["cum_ret_fwd_dd"] = (
+    fund_panel.groupby("fund_id")["mret"]
+              .apply(lambda x: (1 + x).rolling(H_DD).apply(np.prod, raw=True) - 1)
+              .shift(-H_DD)  # shift back to align with prediction month t
+)
+
+fund_panel["crisis_dd_fwd"] = (
+    (fund_panel["cum_ret_fwd_dd"] <= THRESH_DD).astype("Int64")
+)
+```
+
+### 7.3 Outflow Crisis Label (`crisis_flow_fwd`)
+
+Similarly, define cumulative net flow over a forward window \(H^{(flow)}\):
+
+\[
+F_{i,t}^{(H^{(flow)})} = \sum_{\tau = t+1}^{t+H^{(flow)}} \text{flow\_clean}_{i,\tau}.
+\]
+
+Define an outflow threshold \(\theta_{flow} < 0\) (e.g., \(-0.5\) for a cumulative 50% outflow relative to lagged TNA). Then:
+
+\[
+\text{crisis\_flow\_fwd}_{i,t} =
+\begin{cases}
+1, & \text{if } F_{i,t}^{(H^{(flow)})} \leq \theta_{flow}, \\
+0, & \text{otherwise.}
+\end{cases}
+\]
+
+Implementation sketch:
+
+```python
+H_FLOW = 6
+THRESH_FLOW = -0.5
+
+fund_panel["cum_flow_fwd"] = (
+    fund_panel.sort_values(["fund_id", "yyyymm"])
+              .groupby("fund_id")["flow_clean"]
+              .apply(lambda x: x.rolling(H_FLOW).sum())
+              .shift(-H_FLOW)
+)
+
+fund_panel["crisis_flow_fwd"] = (
+    (fund_panel["cum_flow_fwd"] <= THRESH_FLOW).astype("Int64")
+)
+```
+
+### 7.4 Label Validity and Sample Truncation
+
+For months near the sample end where the full \(H\)-month forward window is not observable, labels are set to missing:
+
+- Define `label_valid_flag = 1` if both `cum_ret_fwd_dd` and `cum_flow_fwd` are observed.
+- Final modeling for Phase 3 only uses rows with `label_valid_flag == 1`.
+
+### 7.5 Stage 7 Output Artifacts
+
+```text
+artifacts/stage7/
+├── crisis_labels_drawdown.parquet
+├── crisis_labels_flow.parquet
+└── stage7_diagnostics.json
+```
+
+---
+
+## Stage 9: Analysis-Phase-Specific Data Products
+
+### 9.1 Purpose and Rationale
+
+Different empirical analyses in the project impose different sample requirements and aggregation schemes. Stage 9 defines phase-specific derived datasets and the corresponding eligibility flags:
+
+- `eligible_phase1`: event-study / single-channel signal existence tests.
+- `eligible_phase2`: category-level VAR / network analysis of cross-channel dynamics.
+- `eligible_phase3`: panel for Temporal Fusion Transformer (TFT) training and testing.
+
+### 9.2 Phase 1: Event Study Eligibility (`eligible_phase1`)
+
+Phase 1 evaluates whether individual signals (e.g., holdings concentration, text sentiment) show abnormal behavior around crises.
+
+Eligibility rules:
+
+- The fund must have:
+  - At least \(L_{\text{pre}}\) months of pre-event data (e.g., 24 months).
+  - At least \(L_{\text{post}}\) months of post-event data (e.g., 12 months).
+- The crisis event (drawdown or outflow) is clearly identified (i.e., `crisis_dd_fwd` or `crisis_flow_fwd` triggers within a well-defined window).
+
+Implementation:
+
+```python
+PRE = 24
+POST = 12
+
+def mark_phase1_eligible(panel):
+    panel = panel.sort_values(["fund_id", "yyyymm"])
+    panel["eligible_phase1"] = 0
+
+    # Example: require continuous data around crisis windows
+    # (Pseudo-code; exact implementation may track specific crisis dates)
+    return panel
+```
+
+In practice, `eligible_phase1` is set to 1 for all fund-months belonging to event windows that satisfy the coverage requirements.
+
+### 9.3 Phase 2: Category-Level VAR / Lead–Lag Analysis (`eligible_phase2`)
+
+Phase 2 aggregates signals to the category-month level and studies the lead–lag structure between:
+
+- Holdings-based signals,
+- Text-based signals,
+- Macro/fragility variables.
+
+Eligibility rules for category \(c\) and month \(t\):
+
+- Minimum number of active funds in category \(c\) at month \(t\) (e.g., \(N_{c,t} \geq 10\)).
+- Sufficient time span of data for that category (e.g., at least 60 months of contiguous observations).
+
+Category-level aggregation:
+
+\[
+\bar{x}_{c,t} = \frac{1}{N_{c,t}} \sum_{i \in c} x_{i,t},
+\]
+
+where \(x_{i,t}\) can be `hhi_port`, `amihud_port`, `news_sent_market`, `report_sent_total`, etc.
+
+`eligible_phase2` is then set to 1 for all `(fund_id, yyyymm)` pairs where the corresponding `(category, yyyymm)` is included in the category-level time series used in VAR estimation.
+
+### 9.4 Phase 3: TFT Prediction Panel (`eligible_phase3`)
+
+Phase 3 builds the prediction panel for the Temporal Fusion Transformer.
+
+Eligibility criteria:
+
+- `label_valid_flag == 1` (crisis labels are fully observable).
+- Sufficient history length for model input window (e.g., at least \(L_{\text{hist}} = 24\) months of past features).
+- The fund belongs to the core asset class sample (e.g., actively managed U.S. equity mutual funds) and passes basic data quality filters (no extreme missingness in key predictors).
+
+Implementation sketch:
+
+```python
+L_HIST = 24
+
+panel_sorted = master_panel.sort_values(["fund_id", "yyyymm"])
+panel_sorted["history_length"] = (
+    panel_sorted.groupby("fund_id").cumcount()
+)
+
+master_panel["eligible_phase3"] = (
+    (master_panel["label_valid_flag"] == 1) &
+    (master_panel["history_length"] >= L_HIST)
+).astype("Int64")
+```
+
+### 9.5 Phase-Specific Exported Datasets
+
+```text
+artifacts/stage9/
+├── phase1_event_study_panel.parquet
+├── phase2_category_month_panel.parquet
+├── phase3_tft_training_panel.parquet
+└── stage9_diagnostics.json
+```
 ---
 
 ## Stage 8: Mixed-Frequency Alignment and Master Panel Construction
