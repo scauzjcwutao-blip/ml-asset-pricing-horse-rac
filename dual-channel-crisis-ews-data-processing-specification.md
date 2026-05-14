@@ -431,97 +431,95 @@ Stage 2 delivers security-level holdings snapshots across regimes. Stage 5 aggre
 - **Predictive signals**: computable using information available at or before month \(t\).
 - **Ex post diagnostic signals**: require future return realizations and are used only for mechanism validation (not as predictors).
 
+
 ### 5.2 Portfolio Weights and Basic Aggregation
 
-For each fund \(i\), month \(t\), and security \(j\) with market value \( \text{value}_{ijt} \):
+For each fund $i$, month $t$, and security $j$ with market value $v_{ijt}$:
 
-\[
-w_{i,j,t} = \frac{\text{value}_{i,j,t}}{\sum_{k} \text{value}_{i,k,t}}.
-\]
+$$
+w_{i,j,t} = \frac{v_{i,j,t}}{\sum_{k} v_{i,k,t}}
+$$
 
-Using these weights, all security-level characteristics \(x_{j,t}\) are aggregated to the fund level as:
+Using these weights, all security-level characteristics $x_{j,t}$ are aggregated to the fund level as:
 
-\[
-x_{i,t}^{\text{port}} = \sum_j w_{i,j,t} \, x_{j,t}.
-\]
-
+$$
+x_{i,t}^{port} = \sum_j w_{i,j,t} \, x_{j,t}
+$$
 ### 5.3 Concentration Measures
 
 **Herfindahl-Hirschman Index (HHI):**
 
-\[
-\text{hhi\_port}_{i,t} = \sum_j w_{i,j,t}^2.
-\]
+$$
+\text{HHIPort}_{i,t} = \sum_j w_{i,j,t}^2
+$$
 
 **Top 10 Holdings Share:**
 
-1. Sort securities by \(w_{i,j,t}\) in descending order.
+1. Sort securities by $w_{i,j,t}$ in descending order.
 2. Sum the top 10 weights:
 
-\[
-\text{top10\_share}_{i,t} = \sum_{j \in \text{Top 10}} w_{i,j,t}.
-\]
-
+$$
+\text{Top10Share}_{i,t} = \sum_{j \in \text{Top 10}} w_{i,j,t}
+$$
 ### 5.4 Liquidity Exposure: Portfolio Amihud
 
-Using CRSP stock-level daily data, compute the daily Amihud illiquidity measure for each stock \(j\):
+Using CRSP stock-level daily data, compute the daily Amihud illiquidity measure for each stock $j$:
 
-\[
-\text{illiq}_{j,d} = \frac{|r_{j,d}|}{\text{DollarVolume}_{j,d}}.
-\]
+$$
+\text{Illiq}_{j,d} = \frac{|r_{j,d}|}{\text{DollarVolume}_{j,d}}
+$$
 
-Then average over all trading days in month \(t\):
+Then average over all trading days in month $t$:
 
-\[
-\text{illiq}_{j,t} = \frac{1}{D_t} \sum_{d \in t} \text{illiq}_{j,d}.
-\]
+$$
+\text{Illiq}_{j,t} = \frac{1}{D_t} \sum_{d \in t} \text{Illiq}_{j,d}
+$$
 
 Portfolio-level Amihud:
 
-\[
-\text{amihud\_port}_{i,t} = \sum_j w_{i,j,t} \, \text{illiq}_{j,t}.
-\]
+$$
+\text{AmihudPort}_{i,t} = \sum_j w_{i,j,t} \, \text{Illiq}_{j,t}
+$$
 
-By construction, this measure is known at the end of month \(t\) and can be used to predict \(t+1\) onward.
+By construction, this measure is known at the end of month $t$ and can be used to predict $t+1$ onward.
 
 ### 5.5 Crowding / Similarity: Category Overlap
 
-For each category \(c\) and month \(t\), define the category-average portfolio:
+For each category $c$ and month $t$, define the category-average portfolio:
 
-\[
-\bar{w}_{c,j,t} = \frac{1}{N_{c,t}} \sum_{i \in c} w_{i,j,t}.
-\]
+$$
+\bar{w}_{c,j,t} = \frac{1}{N_{c,t}} \sum_{i \in c} w_{i,j,t}
+$$
 
-Compute the cosine similarity between fund \(i\)’s weight vector \(w_{i,\cdot,t}\) and the category-average vector \(\bar{w}_{c,\cdot,t}\):
+Compute the cosine similarity between fund $i$’s weight vector $w_{i,\cdot,t}$ and the category-average vector $\bar{w}_{c,\cdot,t}$:
 
-\[
-\text{overlap\_cat}_{i,t} =
+$$
+\text{OverlapCat}_{i,t} =
 \frac{\sum_j w_{i,j,t} \bar{w}_{c,j,t}}
-     {\sqrt{\sum_j w_{i,j,t}^2} \sqrt{\sum_j \bar{w}_{c,j,t}^2}}.
-\]
+     {\sqrt{\sum_j w_{i,j,t}^2} \sqrt{\sum_j \bar{w}_{c,j,t}^2}}
+$$
 
 This measures how “crowded” a fund is relative to its peers.
 
 ### 5.6 Tail-Risk Exposure: Portfolio MES (Marginal Expected Shortfall)
 
-Using stock-level daily returns \(r_{j,d}\) and a chosen market factor \(r_{M,d}\) (e.g., S&P 500):
+Using stock-level daily returns $r_{j,d}$ and a chosen market factor $r_{M,d}$ (e.g., S&P 500):
 
 1. Estimate each stock’s MES as:
 
-\[
-\text{MES}_{j} =
-\mathbb{E}\left[ r_{j,d} \,\middle|\, r_{M,d} \leq q_{0.05}(r_{M}) \right],
-\]
+$$
+\text{MES}_{j} = \mathbb{E}\left[ r_{j,d} \,\middle|\, r_{M,d} \leq q_{0.05}(r_{M}) \right]
+$$
 
-where \(q_{0.05}(r_M)\) is the 5% left-tail quantile of the market return.
+where $q_{0.05}(r_M)$ is the 5% left-tail quantile of the market return.
 
 2. Aggregate to the portfolio:
 
-\[
-\text{mes\_port}_{i,t} = \sum_j w_{i,j,t} \, \text{MES}_j.
-\]
+$$
+\text{MESPort}_{i,t} = \sum_j w_{i,j,t} \, \text{MES}_j
+$$
 
-MES is estimated using a rolling window of daily returns up to month \(t\), ensuring point-in-time validity.
+MES is estimated using a rolling window of daily returns up to month $t$, ensuring point-in-time validity.
 
 ### 5.7 Turnover and Turnover Shock
 
@@ -530,9 +528,9 @@ If reported turnover ratios are available at year or semi-annual frequency:
 - **Level:** Use reported `turn_ratio` mapped to the corresponding months.
 - **Quarter-over-quarter change:**
 
-\[
-\text{turnover\_chg}_{i,t} = \text{turnover}_{i,t} - \text{turnover}_{i,t-3}.
-\]
+$$
+\text{TurnoverChg}_{i,t} = \text{Turnover}_{i,t} - \text{Turnover}_{i,t-3}
+$$
 
 A large positive value indicates an unusual surge in trading activity.
 
@@ -542,23 +540,21 @@ These variables are **strictly diagnostic** and must never be included in the pr
 
 1. **Holdings-Based Return (HBR):**
 
-Use end-of-month weights \(w_{i,j,t}\) and next-month stock returns \(r_{j,t+1}\):
+Use end-of-month weights $w_{i,j,t}$ and next-month stock returns $r_{j,t+1}$:
 
-\[
-\text{hbr\_ex\_post}_{i,t+1} = \sum_j w_{i,j,t} \, r_{j,t+1}.
-\]
+$$
+\text{HBRExPost}_{i,t+1} = \sum_j w_{i,j,t} \, r_{j,t+1}
+$$
 
 2. **Return Gap:**
 
-\[
-\text{return\_gap\_ex\_post}_{i,t+1} =
-r_{i,t+1}^{\text{reported}} - \text{hbr\_ex\_post}_{i,t+1}.
-\]
+$$
+\text{ReturnGapExPost}_{i,t+1} = r_{i,t+1}^{\text{reported}} - \text{HBRExPost}_{i,t+1}
+$$
 
 These ex post measures are used to study whether “abnormal” trading or unobserved positions explain deviations between reported returns and holdings-implied returns.
 
 ### 5.9 Stage 5 Output Artifacts
-
 ```text
 artifacts/stage5/
 ├── holdings_signals_monthly.parquet
