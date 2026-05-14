@@ -135,15 +135,15 @@ r_{p,t} = \frac{\sum_{s \in p} r_{s,t} \times \text{TNA}_{s,t-1}}{\sum_{s \in p}
 
 **Raw dollar flow:**
 
-\[
+$$
 \text{Flow}^{\$}_{i,t} = \text{TNA}_{i,t} - \text{TNA}_{i,t-1} \times (1 + r_{i,t})
-\]
+$$
 
 **Percentage flow:**
 
-\[
+$$
 \text{flow}_{i,t} = \frac{\text{Flow}^{\$}_{i,t}}{\text{TNA}_{i,t-1}}
-\]
+$$
 
 ### 1.5 Example Python Snippet: Portfolio-Month Identifier
 
@@ -710,10 +710,28 @@ Define a drawdown threshold \(\theta_{dd} < 0\) (e.g., \(-0.3\) for a 30% drop).
 \end{cases}
 \]
 
+### 7.2 Drawdown Crisis Label (`crisis_dd_fwd`)
+
+For each fund $i$ and month $t$, define the cumulative return over a forward window of $H^{(dd)}$ months:
+
+$$
+R_{i,t}^{(H^{(dd)})} = \prod_{\tau = t+1}^{t+H^{(dd)}} (1 + r_{i,\tau}) - 1
+$$
+
+Define a drawdown threshold $\theta_{dd} < 0$ (e.g., $-0.3$ for a 30% drop). Then:
+
+$$
+\text{CrisisDDFwd}_{i,t} =
+\begin{cases}
+1, & \text{if } R_{i,t}^{(H^{(dd)})} \leq \theta_{dd}, \\
+0, & \text{otherwise.}
+\end{cases}
+$$
+
 Typical choices:
 
-- \(H^{(dd)} = 6\) or \(12\) months.
-- \(\theta_{dd} \in [-0.2, -0.4]\) depending on desired severity.
+- $H^{(dd)} = 6$ or $12$ months.
+- $\theta_{dd} \in [-0.2, -0.4]$ depending on desired severity.
 
 Implementation sketch:
 
