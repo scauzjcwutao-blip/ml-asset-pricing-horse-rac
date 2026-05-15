@@ -1,6 +1,6 @@
 ## Citation / Acknowledgment
 
-If you use this code in your research, seminar, or paper, please cite the repository:
+If you use this code in your research, seminar, or paper, I will thank you for  citing the below repository:
 ```bash
 ```bibtex
 @misc{wu2026_ml_asset_pricing_horse_race,
