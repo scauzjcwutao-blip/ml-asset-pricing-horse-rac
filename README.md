@@ -1,3 +1,16 @@
+## Citation / Acknowledgment
+
+If you use this code in your research, seminar, or paper, please cite the repository:
+```bash
+```bibtex
+@misc{wu2026_ml_asset_pricing_horse_race,
+  author       = {Tao Wu},
+  title        = {ML Horse-Race Asset Pricing Pipeline: Replication and Extension of Weigert et al. (RFS 2023 \& JF 2024)},
+  year         = {2026},
+  url          = {https://github.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac},
+  note         = {Available at: https://github.com/scauzjcwutao-blip/ml-asset-pricing-horse-rac}
+}
+```
 # ML Horse-Race Asset Pricing Pipeline
 
 **Replicating & Extending Weigert et al. (RFS 2023 & JF 2024)**
