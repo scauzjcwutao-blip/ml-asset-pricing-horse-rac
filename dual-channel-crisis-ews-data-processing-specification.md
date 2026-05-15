@@ -1,7 +1,7 @@
 # Data Processing Specification: Dual-Channel Fund Crisis Early Warning System
 
 **Document Version:** 2.0  
-**Last Updated:** 2025-XX-XX  
+**Last Updated:** 2026-05  
 **Repository:** `dual-channel-crisis-ews/docs/data_processing_specification.md`
 
 ---
