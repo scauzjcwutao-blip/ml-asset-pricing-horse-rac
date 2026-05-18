@@ -736,19 +736,19 @@ fund_panel["crisis_dd_fwd"] = (
 
 Similarly, define cumulative net flow over a forward window \(H^{(flow)}\):
 
-\[
-F_{i,t}^{(H^{(flow)})} = \sum_{\tau = t+1}^{t+H^{(flow)}} \text{flow\_clean}_{i,\tau}.
-\]
+$$
+F_{i,t}^{(H^{(flow)})} = \sum_{\tau = t+1}^{t+H^{(flow)}} \text{flow\\_clean}_{i,\tau}.
+$$
 
-Define an outflow threshold \(\theta_{flow} < 0\) (e.g., \(-0.5\) for a cumulative 50% outflow relative to lagged TNA). Then:
+Define an outflow threshold \(\theta_{flow} < 0\) (e.g., $-0.5$ for a cumulative 50% outflow relative to lagged TNA). Then:
 
-\[
-\text{crisis\_flow\_fwd}_{i,t} =
+$$
+\text{crisis\\_flow\\_fwd}_{i,t} =
 \begin{cases}
-1, & \text{if } F_{i,t}^{(H^{(flow)})} \leq \theta_{flow}, \\
+1, & \text{if } F_{i,t}^{(H^{(flow)})} \leq \theta_{flow}, \\\\
 0, & \text{otherwise.}
 \end{cases}
-\]
+$$
 
 Implementation sketch:
 
