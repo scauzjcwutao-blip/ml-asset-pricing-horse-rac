@@ -717,8 +717,7 @@ THRESH_DD = -0.3
 fund_panel = fund_panel.sort_values(["fund_id", "yyyymm"])
 fund_panel["cum_ret_fwd_dd"] = (
     fund_panel.groupby("fund_id")["mret"]
-              .apply(lambda x: (1 + x).rolling(H_DD).apply(np.prod, raw=True) - 1)
-              .shift(-H_DD)  # shift back to align with prediction month t
+              .apply(lambda x: ((1 + x).rolling(H_DD).apply(np.prod, raw=True) - 1).shift(-H_DD))
 )
 
 fund_panel["crisis_dd_fwd"] = (
@@ -753,10 +752,8 @@ THRESH_FLOW = -0.5
 fund_panel["cum_flow_fwd"] = (
     fund_panel.sort_values(["fund_id", "yyyymm"])
               .groupby("fund_id")["flow_clean"]
-              .apply(lambda x: x.rolling(H_FLOW).sum())
-              .shift(-H_FLOW)
+              .apply(lambda x: x.rolling(H_FLOW).sum().shift(-H_FLOW))
 )
-
 fund_panel["crisis_flow_fwd"] = (
     (fund_panel["cum_flow_fwd"] <= THRESH_FLOW).astype("Int64")
 )
@@ -768,7 +765,10 @@ For months near the sample end where the full \(H\)-month forward window is not 
 
 - Define `label_valid_flag = 1` if both `cum_ret_fwd_dd` and `cum_flow_fwd` are observed.
 - Final modeling for Phase 3 only uses rows with `label_valid_flag == 1`.
-
+```python
+crisis_mask = fund_panel["cum_ret_fwd_dd"] <= THRESH_DD
+fund_panel["crisis_dd_fwd"] = crisis_mask.where(fund_panel["cum_ret_fwd_dd"].notna()).astype("Int64")
+```
 ### 7.5 Stage 7 Output Artifacts
 
 ```text
