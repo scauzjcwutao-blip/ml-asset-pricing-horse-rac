@@ -218,8 +218,6 @@ Critical differences from N-PORT:
 
 **Parsing quality control:**
 
-Parsing quality control:
-
 $$
 \text{ParseQualityRatio} = \frac{\sum_j \text{parsedValue}_j}{\text{reportedNAV} \times \text{sharesOutstanding}}
 $$
