@@ -781,7 +781,6 @@ artifacts/stage7/
 ├── crisis_labels_flow.parquet
 └── stage7_diagnostics.json
 ```
-```
 ## Stage 8: Mixed-Frequency Alignment and Master Panel Construction
 
 ### 8.1 Monthly Backbone Construction
