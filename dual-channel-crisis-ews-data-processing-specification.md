@@ -385,8 +385,6 @@ where $z(\cdot)$ denotes a standardized version of the series (mean 0, unit vari
 
 Implementation:
 
-where \(z(\cdot)\) denotes a standardized version of the series (mean 0, unit variance) computed over the historical window up to time \(t\).
-
 ```python
 macro_monthly["passive_aum_growth"] = (
     np.log(macro_monthly["passive_aum"]) -
