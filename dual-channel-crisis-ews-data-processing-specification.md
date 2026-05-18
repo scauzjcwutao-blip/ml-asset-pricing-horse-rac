@@ -781,7 +781,41 @@ artifacts/stage7/
 ├── crisis_labels_flow.parquet
 └── stage7_diagnostics.json
 ```
+```
+## Stage 8: Mixed-Frequency Alignment and Master Panel Construction
 
+### 8.1 Monthly Backbone Construction
+
+```python
+backbone = [
+    (fund_id, yyyymm)
+    for fund_id in primary_prediction_sample
+    for yyyymm in range(sample_start_month, sample_end_month + 1)
+    if fund_active_in_month(fund_id, yyyymm)
+]
+```
+
+### 8.2 Holdings Signals Merge Rule
+
+For each backbone observation `(fund_id, yyyymm)`, find the most recent holdings signal with `effective_month <= yyyymm`.
+
+```python
+panel = merge_asof(
+    left=backbone.sort_values(["fund_id", "yyyymm"]),
+    right=holdings_signals.sort_values(["fund_id", "effective_month"]),
+    by="fund_id",
+    left_on="yyyymm",
+    right_on="effective_month",
+    direction="backward"
+)
+```
+
+### 8.3 Uniqueness Validation
+
+```python
+assert master_panel.groupby(["fund_id", "yyyymm"]).size().max() == 1, \
+    "Duplicate fund-month observations detected — merge logic error"
+```
 ---
 
 ## Stage 9: Analysis-Phase-Specific Data Products
@@ -882,40 +916,6 @@ artifacts/stage9/
 ```
 ---
 
-## Stage 8: Mixed-Frequency Alignment and Master Panel Construction
-
-### 8.1 Monthly Backbone Construction
-
-```python
-backbone = [
-    (fund_id, yyyymm)
-    for fund_id in primary_prediction_sample
-    for yyyymm in range(sample_start_month, sample_end_month + 1)
-    if fund_active_in_month(fund_id, yyyymm)
-]
-```
-
-### 8.2 Holdings Signals Merge Rule
-
-For each backbone observation `(fund_id, yyyymm)`, find the most recent holdings signal with `effective_month <= yyyymm`.
-
-```python
-panel = merge_asof(
-    left=backbone.sort_values(["fund_id", "yyyymm"]),
-    right=holdings_signals.sort_values(["fund_id", "effective_month"]),
-    by="fund_id",
-    left_on="yyyymm",
-    right_on="effective_month",
-    direction="backward"
-)
-```
-
-### 8.3 Uniqueness Validation
-
-```python
-assert master_panel.groupby(["fund_id", "yyyymm"]).size().max() == 1, \
-    "Duplicate fund-month observations detected — merge logic error"
-```
 
 ---
 
